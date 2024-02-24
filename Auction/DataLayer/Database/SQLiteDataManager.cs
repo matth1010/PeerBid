@@ -2,7 +2,7 @@
 using Microsoft.Data.Sqlite;
 using System.Data.SQLite;
 
-public class SQLiteDataManager : IDisposable
+public class SQLiteDataManager : IDataManager, IDisposable
 {
     private readonly SqliteConnection _connection;
 

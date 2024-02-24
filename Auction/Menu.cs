@@ -16,9 +16,9 @@ namespace Auction
         private readonly Peer _peer;
         private readonly IAuctionRepository _auctionRepository;
         private readonly AuctionRequestHandler _auctionRequestHandler;
-        private readonly SQLiteDataManager _dataManager;
+        private readonly IDataManager _dataManager;
 
-        public Menu(Peer peer, IAuctionRepository auctionRepository, AuctionRequestHandler auctionRequestHandler, SQLiteDataManager dataManager)
+        public Menu(Peer peer, IAuctionRepository auctionRepository, AuctionRequestHandler auctionRequestHandler, IDataManager dataManager)
         {
             _peer = peer;
             _auctionRepository = auctionRepository;
