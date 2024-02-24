@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+service PeerHandler {
+	rpc Ping (PingRequest) returns (PingResponse);
+}
+
+message KnownPeer {
+	string address = 1;
+	string name = 2;
+	int32 port = 3;
+}
+
+message PingRequest {
+	KnownPeer requesting_peer = 1;
+}
+
+message PingResponse {
+	repeated KnownPeer known_peers = 1;
+}
