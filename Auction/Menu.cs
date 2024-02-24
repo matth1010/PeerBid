@@ -111,7 +111,7 @@ namespace Auction
             var auction = new AuctionItemDTO { Item = item, Price = price, Seller = _peer.Name };
             var auctionId = await _dataManager.InsertAuction(auction);
 
-            await _auctionRequestHandler.Initialize(item, price, _peer.Name);
+            await _auctionRequestHandler.Initialize(auctionId, item, price, _peer.Name);
         }
 
         private async Task AuctionBidAsync()

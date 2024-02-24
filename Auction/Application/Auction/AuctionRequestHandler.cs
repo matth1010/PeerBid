@@ -20,9 +20,8 @@ namespace Auction.Application.Auction
         /// <param name="item">The item to be auctioned.</param>
         /// <param name="price">The starting price of the auction.</param>
         /// <param name="author">The author or creator of the auction.</param>
-        public async Task Initialize(string item, double price, string author)
+        public async Task Initialize(string auctionId, string item, double price, string author)
         {
-            var auctionId = Guid.NewGuid().ToString("N").ToUpper(); // Use proper GUID format
             foreach (var connectedPeer in _authorPeer.ConnectedPeers)
             {
                 try
