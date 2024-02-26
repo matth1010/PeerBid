@@ -59,18 +59,34 @@ namespace Auction.Application.Auction
                 {
                     var channel = new Channel(connectedPeer.Key, ChannelCredentials.Insecure);
                     var client = new AuctionHandler.AuctionHandlerClient(channel);
-                    await client.PlaceBidAsync(new BidData
+
+                    var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+                    var bidTask = client.PlaceBidAsync(new BidData
                     {
                         AuctionId = auctionId,
                         Amount = amount,
                         Bidder = author
                     });
 
-                    await channel.ShutdownAsync();
+                    var completedTask = await Task.WhenAny(bidTask.ResponseAsync, Task.Delay(-1, cancellationTokenSource.Token));
+
+                    if (completedTask.IsCompleted)
+                    {
+                        await channel.ShutdownAsync();
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Failed to place bid: Timeout connecting to peer {connectedPeer.Key}");
+                    }
                 }
                 catch (RpcException ex)
                 {
                     Console.WriteLine($"Failed to connect to peer {connectedPeer.Key}: {ex.Status}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to place bid: {ex.Message}");
                 }
             }
         }
@@ -91,7 +107,7 @@ namespace Auction.Application.Auction
                     {
                         AuctionId = auctionId,
                         HighestBidder = highestBid.Bidder,
-                        Price = highestBid.Price
+                        Price = highestBid.Amount
                     });
 
                     await channel.ShutdownAsync();

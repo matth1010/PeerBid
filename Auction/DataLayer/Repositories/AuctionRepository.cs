@@ -29,22 +29,22 @@ namespace Auction.Data.Repositories
         public async Task InitializeAuctionAsync(AuctionBid bid)
         {
             // Insert auction into database
-            var auction = new AuctionItemDTO { Item = bid.Product, Price = bid.Price, Seller = _peer.Name, Status = AuctionStatusCode.Open };
+            var auction = new AuctionItemDTO { Item = bid.Product, Price = bid.Amount, Seller = _peer.Name, Status = AuctionStatusCode.Open };
             var auctionId = await _dataManager.InsertAuction(auction);
 
-            await _auctionRequestHandler.Initialize(auctionId, bid.Product, bid.Price, _peer.Name);
+            await _auctionRequestHandler.Initialize(auctionId, bid.Product, bid.Amount, _peer.Name);
         }
 
-        public void AddAuction(AuctionModel auction)
+        public async void AddAuction(AuctionModel auction)
         {
-            var auctions = GetCurrentCachedAuctions();
+            var auctions = await GetCurrentCachedAuctions();
             auctions.Add(auction);
             SaveData(_auctionsKey, auctions);
         }
 
         public async Task<AuctionModel?> GetAuctionByIdAsync(string auctionId)
         {
-            var auctions = GetCurrentCachedAuctions();
+            var auctions = await GetCurrentCachedAuctions();
             var auction = auctions.FirstOrDefault(x => x.Id.Equals(auctionId, StringComparison.OrdinalIgnoreCase));
 
             if (auction == null)
@@ -63,48 +63,48 @@ namespace Auction.Data.Repositories
             var auction = await GetAuctionByIdAsync(auctionId);
             if (auction != null) return auction.GetHighestBid();
 
+            // Fetch the winning bid from the database
             var winningBid = await _dataManager.GetWinningBidForAuction(auctionId);
             return _mapper.Map<AuctionBid>(winningBid);
-
         }
 
         public async Task AddBidAsync(AuctionBid bid)
         {
-            var cachedAuctions = GetCurrentCachedAuctions();
-            var auction = cachedAuctions?.FirstOrDefault(x => x.Id == bid.AuctionId);
-            if (auction != null)
-            {
-                auction.Bids.Add(bid);
-                SaveData(_auctionsKey, cachedAuctions);
-            }
-
             var bidDto = _mapper.Map<BidDTO>(bid);
+            bid.TimeStamp = DateTime.Now;
 
             await _dataManager.InsertBid(bidDto);
 
-            await _auctionRequestHandler.PlaceBid(bid.AuctionId, bid.Price, bid.Bidder);
+            var cachedAuctions = await GetCurrentCachedAuctions();
+
+            var auction = cachedAuctions.FirstOrDefault(x => x.Id == bid.AuctionId);
+            if (auction != null)
+            {
+                auction.Bids.Add(bid);
+
+                await UpdateAuctionCacheAsync(auction);
+            }
+
+            await _auctionRequestHandler.PlaceBid(bid.AuctionId, bid.Amount, bid.Bidder);
         }
 
         public async Task CompleteAuction(string auctionId, AuctionBid winningBid)
         {
             await _auctionRequestHandler.Complete(auctionId, winningBid);
 
-            await _dataManager.UpdateAuctionStatus(auctionId, winningBid.Price, AuctionStatusCode.Closed);
+            await _dataManager.UpdateAuctionStatus(auctionId, winningBid.Amount, AuctionStatusCode.Closed);
             await _dataManager.DeleteBidsForAuction(auctionId);
         }
 
-        public async Task<List<AuctionModel>> GetAllAuctions()
+        private async Task<List<AuctionModel>> GetAllAuctions()
         {
-            var cachedAuctions = GetCurrentCachedAuctions();
-            if (cachedAuctions.Count > 0) return cachedAuctions;
-
             var auctions = await _dataManager.GetAllAuctions();
             return _mapper.Map<List<AuctionModel>>(auctions);
         }
 
-        public void UpdateAuctionCache(AuctionModel auction)
+        public async Task UpdateAuctionCacheAsync(AuctionModel auction)
         {
-            var auctions = GetCurrentCachedAuctions();
+            var auctions = await GetCurrentCachedAuctions();
             var existingAuction = auctions.FirstOrDefault(x => x.Id == auction.Id);
             if (existingAuction != null)
             {
@@ -114,9 +114,24 @@ namespace Auction.Data.Repositories
             }
         }
 
-        public List<AuctionModel> GetCurrentCachedAuctions()
+        public async Task<List<AuctionModel>> GetCurrentCachedAuctions()
         {
-            return _cache.Get<List<AuctionModel>>(_auctionsKey) ?? new List<AuctionModel>();
+            var cachedAuctions = _cache.Get<List<AuctionModel>>(_auctionsKey);
+
+            if (cachedAuctions == null || cachedAuctions.Count == 0)
+            {
+                // Fetch data from the database asynchronously
+                cachedAuctions = await GetAllAuctions();
+                foreach (var auction in cachedAuctions)
+                {
+                    var bids = await _dataManager.GetBidsForAuction(auction.Id);
+                    // Merge the fetched bids with the existing bids for the auction
+                    auction.Bids.AddRange(_mapper.Map<List<AuctionBid>>(bids));
+                }
+                SaveData(_auctionsKey, cachedAuctions);
+            }
+
+            return cachedAuctions;
         }
 
         private void SaveData<T>(string key, T value)

@@ -46,12 +46,12 @@ namespace Auction.Services
         /// <returns></returns>
         public override async Task<BidData> PlaceBid(BidData data, ServerCallContext context)
         {
-            Console.WriteLine($" >> {data.Bidder} has placed a new bid for {data.Amount} in auction {data.AuctionId}");
+            Console.WriteLine($" >> {data.Bidder} has placed a new bid for ${data.Amount} in auction {data.AuctionId}");
 
-            _auctionRepository.AddBidAsync(new AuctionBid
+            await _auctionRepository.AddBidAsync(new AuctionBid
             {
                 AuctionId = data.AuctionId,
-                Price = data.Amount,
+                Amount = data.Amount,
                 Bidder = data.Bidder
             });
 
@@ -66,14 +66,14 @@ namespace Auction.Services
         /// <returns></returns>
         public override async Task<CompletionData> Complete(CompletionData data, ServerCallContext context)
         {
-            Console.WriteLine($" >> Auction {data.AuctionId} has been completed. Highest bidder: {data.HighestBidder}. Amount: {data.Price}");
+            Console.WriteLine($" >> Auction {data.AuctionId} has been completed. Highest bidder: {data.HighestBidder}. Amount: ${data.Price}");
 
             var auction = await _auctionRepository.GetAuctionByIdAsync(data.AuctionId);
 
             if (auction != null)
             {
                 auction.Status = AuctionStatusCode.Closed;
-                _auctionRepository.UpdateAuctionCache(auction);
+                _auctionRepository.UpdateAuctionCacheAsync(auction);
             }
 
             return data;

@@ -23,8 +23,6 @@ namespace Auction
             // Initialize SQLitePCL
             Batteries.Init();
 
-            ConfigureAutoMapper();
-
             Console.WriteLine("Welcome to PeerBid\n");
             Console.WriteLine("-------------------------------------");
 
@@ -34,6 +32,11 @@ namespace Auction
 
         static async Task InitializeAndStartServer()
         {
+            Console.Clear();
+
+            Console.WriteLine("Welcome to PeerBid\n");
+            Console.WriteLine("-------------------------------------");
+
             // Read peer name and port
             var peerName = ReadInput("Enter name for peer: ") ?? Guid.NewGuid().ToString();
             if (!int.TryParse(ReadInput($"Enter a port for {peerName}: "), out int peerPort))
@@ -42,13 +45,10 @@ namespace Auction
                 return;
             }
 
-            // Create peer instance
             var peer = new Peer(peerPort, peerName);
 
-            // Set up dependency injection
             var serviceProvider = ConfigureServices(peer);
 
-            // Start the server
             await StartServer(serviceProvider, peer);
         }
 
@@ -117,35 +117,44 @@ namespace Auction
             if (!int.TryParse(fellowPeerPortInput, out int fellowPeerPort))
                 return;
 
+            // Update connected peers
+            var peerRepo = serviceProvider.GetRequiredService<IPeerRepository>();
+            Console.WriteLine($"Connected peers: {peerRepo.GetConnectedPeersCount()}");
+
             await RetryConnect(peer, fellowPeerPort);
-            Console.WriteLine($"Connected peers: {peer.ConnectedPeers.Count}\n");
-        }
 
-        static async Task RetryConnect(Peer peer, int fellowPeerPort)
-        {
-            int maxAttempts = 3;
-            int attempt = 1;
-            bool connected = false;
-
-            while (!connected && attempt <= maxAttempts)
+            async Task RetryConnect(Peer peer, int fellowPeerPort)
             {
-                try
-                {
-                    await PeerRequestHandler.PingFellowPeer(peer, fellowPeerPort);
-                    connected = true;
-                }
-                catch (RpcException ex)
-                {
-                    Console.WriteLine($"Attempt {attempt} failed: {ex.Message}");
-                    Thread.Sleep(1000);
-                    attempt++;
-                }
-            }
+                int maxAttempts = 3;
+                int attempt = 1;
+                bool connected = false;
 
-            if (!connected)
-            {
-                Console.WriteLine("Failed to connect after multiple attempts.");
-                // Handle the failure appropriately (e.g., exit the application or show an error message)
+                while (!connected && attempt <= maxAttempts)
+                {
+                    try
+                    {
+                        await PeerRequestHandler.PingFellowPeer(peer, fellowPeerPort);
+                        connected = true;
+                    }
+                    catch (RpcException ex)
+                    {
+                        Console.WriteLine($"Attempt {attempt} failed: {ex.Message}");
+                        Thread.Sleep(1000);
+                        attempt++;
+                    }
+                }
+
+                if (connected)
+                {
+                    // Update connected peers count after successful connection
+                    Console.WriteLine("Connected to peer successfully.");
+                    peerRepo.UpdateConnectedPeersCount(1);
+                }
+                else
+                {
+                    Console.WriteLine("Failed to connect after multiple attempts.");
+                    // Handle the failure appropriately (e.g., exit the application or show an error message)
+                }
             }
         }
 
@@ -153,17 +162,6 @@ namespace Auction
         {
             Console.Write(message);
             return Console.ReadLine();
-        }
-
-        static void ConfigureAutoMapper()
-        {
-            var mapperConfig = new MapperConfiguration(cfg =>
-            {
-                cfg.AddProfile<AuctionMappingProfile>();
-            });
-
-            // Create a mapper instance and store it in a static variable
-            var mapper = mapperConfig.CreateMapper();
         }
     }
 }
