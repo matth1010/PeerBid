@@ -24,8 +24,8 @@ To run the P2P Auction System on your machine, follow these steps:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/p2p-auction-system.git
-   cd p2p-auction-system
+   git clone https://github.com/matth1010/PeerBid.git
+   cd PeerBid
 
 ## Usage
 Once the system is up and running, you can perform the following actions:
