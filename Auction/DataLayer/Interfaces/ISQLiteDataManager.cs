@@ -17,6 +17,7 @@ namespace Auction.DataLayer.Interfaces
         Task DeleteAuction(string auctionId);
         Task DeleteBidsForAuction(string auctionId);
         Task<AuctionItemDTO?> GetAuctionById(string auctionId);
+        Task<List<BidDTO>> GetBidsForAuction(string auctionId);
         Task UpdateAuctionStatus(string auctionId, double winningBid, AuctionStatusCode status);
     }
 }

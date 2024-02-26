@@ -6,6 +6,7 @@ namespace Auction.Data.Models
     public class Peer
     {
         private readonly string _baseUrl = "localhost";
+        private readonly HashSet<string> _notifiedPeers = new HashSet<string>();
 
         public Guid Id { get; private set; }
         public int Port { get; set; }
@@ -28,6 +29,19 @@ namespace Auction.Data.Models
                 return;
 
             ConnectedPeers.Add(address, name);
+
+            foreach (var peer in ConnectedPeers)
+            {
+                // Check if the notification has already been sent to this peer
+                if (peer.Key != address && !_notifiedPeers.Contains(peer.Key))
+                {
+                    // Send a message to other peers informing them about the new peer
+                    Console.WriteLine($"New peer connected on port {address.Split(':')[1]}: Peer '{name}' joined the network.");
+                    Console.WriteLine($"[{Name}] [Connected peers: {ConnectedPeers.Count} @ {DateTime.Now}]");
+
+                    _notifiedPeers.Add(peer.Key); // Add the peer to the notified list
+                }
+            }
         }
     }
 }

@@ -68,8 +68,11 @@ namespace Auction
                 case "-c":
                     await AuctionComplete();
                     break;
-                case "-l":
+                case "-al":
                     await AuctionListAsync();
+                    break;
+                case "-bl":
+                    await AuctionBidsAsync();
                     break;
                 case "clear":
                     Console.Clear();
@@ -98,7 +101,7 @@ namespace Auction
                 Console.Write("Enter the starting price: $");
             } while (!double.TryParse(Console.ReadLine(), out price) || price <= 0);
 
-            var bid = new AuctionBid { Bidder = _peer.Name, Product = item, Price = price };
+            var bid = new AuctionBid { Bidder = _peer.Name, Product = item, Amount = price };
 
             await _auctionRepository.InitializeAuctionAsync(bid);
             Console.WriteLine("Auction initialized successfully.");
@@ -130,9 +133,13 @@ namespace Auction
             }
 
             double bidAmount;
+            var winningBid = await _auctionRepository.GetHighestBid(auctionId);
             do
             {
-                Console.Write("Enter your bid amount: $");
+                if(winningBid != null)
+                    Console.Write($"Current winning bid: ${winningBid.Amount}.\n");
+
+                Console.Write($"Enter your bid amount: $");
             } while (!double.TryParse(Console.ReadLine(), out bidAmount) || bidAmount <= 0);
 
             if (auction.Price >= bidAmount)
@@ -141,14 +148,13 @@ namespace Auction
                 return;
             }
 
-            var winningBid = await _auctionRepository.GetHighestBid(auctionId);
-            if (winningBid != null && bidAmount <= winningBid.Price)
+            if (winningBid != null && bidAmount <= winningBid.Amount)
             {
-                Console.WriteLine($"Your bid amount must be higher than the current highest bid of ${winningBid.Price}.");
+                Console.WriteLine($"Your bid amount must be higher than the current highest bid of ${winningBid.Amount}.");
                 return;
             }
 
-            var bid = new AuctionBid { AuctionId = auctionId, Bidder = _peer.Name, Product = auction.Item, Price = bidAmount };
+            var bid = new AuctionBid { AuctionId = auctionId, Bidder = _peer.Name, Product = auction.Item, Amount = bidAmount };
             await _auctionRepository.AddBidAsync(bid);
             Console.WriteLine("Bid placed successfully.");
         }
@@ -193,7 +199,7 @@ namespace Auction
             }
 
             Console.WriteLine($"Auction '{auctionId}' has been completed.");
-            Console.WriteLine($"The highest bidder is {winningBid.Bidder} with a bid of ${winningBid.Price} for product '{winningBid.Product}'.");
+            Console.WriteLine($"The highest bidder is {winningBid.Bidder} with a bid of ${winningBid.Amount} for product '{winningBid.Product}'.");
 
             Console.Write("Do you wish to complete the auction now? (Y/N): ");
             var answer = Console.ReadLine()?.ToUpper();
@@ -212,14 +218,15 @@ namespace Auction
         private async Task AuctionListAsync()
         {
             Console.WriteLine("Fetching list of auctions...");
-            var auctions = await _auctionRepository.GetAllAuctions();
+            var auctions = await _auctionRepository.GetCurrentCachedAuctions();
 
             if (auctions.Any())
             {
                 Console.WriteLine("List of current auctions: ");
                 foreach (var auction in auctions)
                 {
-                    Console.WriteLine($" -> ID: {auction.Id} | Author: {auction.Seller} | Item: {auction.Item} | Price: ${auction.Price} | Status: {auction.Status}");
+                    string highestBidInfo = auction.GetHighestBid() != null ? $" | Highest Bid: {auction.GetHighestBid().Amount}" : "";
+                    Console.WriteLine($" -> ID: {auction.Id} | Author: {auction.Seller} | Item: {auction.Item} | Price: ${auction.Price}{highestBidInfo} | Status: {auction.Status}");
                 }
             }
             else
@@ -237,13 +244,45 @@ namespace Auction
             }
         }
 
+        private async Task AuctionBidsAsync()
+        {
+            Console.Write("Enter the auction ID: ");
+            var auctionId = Console.ReadLine();
+
+            if (string.IsNullOrWhiteSpace(auctionId))
+            {
+                Console.WriteLine("Invalid auction ID. Please enter a non-empty value.");
+                return;
+            }
+
+            Console.WriteLine($"Fetching bids for auction '{auctionId}'...");
+            var auction = await _auctionRepository.GetAuctionByIdAsync(auctionId);
+
+            if (auction != null && auction.Bids.Count > 0)
+            {
+                // Sort bids by amount (descending order)
+                var sortedBids = auction.Bids.OrderByDescending(b => b.Amount).ToList();
+
+                Console.WriteLine($"List of bids for auction '{auctionId}': ");
+                foreach (var bid in sortedBids)
+                {
+                    Console.WriteLine($" -> Bidder: {bid.Bidder} | Product: {bid.Product} | Amount: ${bid.Amount} | Date: {bid.TimeStamp}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"No bids found for auction '{auctionId}'.");
+            }
+        }
+
         private static void Help()
         {
             Console.WriteLine("List of commands in this CLI: ");
             Console.WriteLine("auction -i -> Initializes a new auction.");
             Console.WriteLine("auction -b -> Places a bid into an existing auction.");
             Console.WriteLine("auction -c -> Completes an ongoing auction.");
-            Console.WriteLine("auction -l -> Lists all existing auctions.");
+            Console.WriteLine("auction -al -> Lists all existing auctions.");
+            Console.WriteLine("auction -bl -> Lists all existing auction bids.");
             Console.WriteLine("peer -> Lists all known peers.");
             Console.WriteLine("clear -> Clears the console.");
             Console.WriteLine("exit -> Exits the auction system.");

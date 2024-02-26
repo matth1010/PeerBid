@@ -13,7 +13,9 @@ namespace Auction.DataLayer.Repositories.Profiles
             CreateMap<Data.Models.Auction, AuctionItemDTO>()
              .ForMember(d => d.AuctionId, opt => opt.MapFrom((s, d) => s.Id));
 
-            CreateMap<BidDTO, Data.Models.AuctionBid>();
+            CreateMap<BidDTO, Data.Models.AuctionBid>()
+            .ForMember(d => d.Amount, opt => opt.MapFrom((s, d) => s.Amount));
+
             CreateMap<Data.Models.AuctionBid, BidDTO>();
         }
     }

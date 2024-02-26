@@ -91,7 +91,7 @@ namespace Auction.Application.Auction
                     {
                         AuctionId = auctionId,
                         HighestBidder = highestBid.Bidder,
-                        Price = highestBid.Price
+                        Price = highestBid.Amount
                     });
 
                     await channel.ShutdownAsync();

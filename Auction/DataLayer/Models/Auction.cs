@@ -17,7 +17,7 @@ namespace Auction.Data.Models
         public AuctionBid? GetHighestBid()
         {
             return Bids
-                .OrderByDescending(x => x.Price)
+                .OrderByDescending(x => x.Amount)
                 .FirstOrDefault();
         }
     }

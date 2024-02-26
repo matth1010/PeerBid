@@ -8,6 +8,7 @@ namespace Auction.Data.Repositories
     {
         private readonly IMemoryCache _cache;
         private readonly string _peersKey = "peers";
+        private readonly string _connectedPeersCountKey = "connectedPeersCount";
 
         public PeerRepository(IMemoryCache cache)
         {
@@ -28,6 +29,16 @@ namespace Auction.Data.Repositories
         public List<Peer> GetPeers()
         {
             return _cache.Get<List<Peer>>(_peersKey) ?? new List<Peer>();
+        }
+
+        public int GetConnectedPeersCount()
+        {
+            return _cache.Get<int>(_connectedPeersCountKey);
+        }
+
+        public void UpdateConnectedPeersCount(int count)
+        {
+            _cache.Set(_connectedPeersCountKey, count);
         }
     }
 }

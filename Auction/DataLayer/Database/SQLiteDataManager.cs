@@ -236,6 +236,44 @@ public class SQLiteDataManager : ISQLiteDataManager, IDisposable
         }
     }
 
+    public async Task<List<BidDTO>> GetBidsForAuction(string auctionId)
+    {
+        List<BidDTO> bids = new List<BidDTO>();
+
+        // Retrieve all bids for the given auction from the SQLite database
+        string selectQuery = "SELECT Bidder, Product, Amount, Timestamp FROM Bidding WHERE AuctionId = @AuctionId";
+
+        using (SqliteCommand command = new SqliteCommand(selectQuery, _connection))
+        {
+            command.Parameters.AddWithValue("@AuctionId", auctionId);
+
+            using (SqliteDataReader reader = await command.ExecuteReaderAsync())
+            {
+                while (reader.Read())
+                {
+                    string bidder = reader.GetString(0);
+                    string product = reader.GetString(1);
+                    double amount = reader.GetDouble(2);
+                    DateTime timestamp = reader.GetDateTime(3);
+
+                    BidDTO bid = new BidDTO
+                    {
+                        AuctionId = auctionId,
+                        Bidder = bidder,
+                        Product = product,
+                        Amount = amount,
+                        Timestamp = timestamp
+                    };
+
+                    bids.Add(bid);
+                }
+            }
+        }
+
+        return bids;
+    }
+
+
     public async Task UpdateAuctionStatus(string auctionId, double winningBid, AuctionStatusCode status)
     {
         string updateQuery = "UPDATE Auction SET Status = @Status, Price = @WinningBid WHERE AuctionId = @AuctionId";
