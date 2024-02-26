@@ -6,7 +6,10 @@ using Auction.Application.Auction;
 using Auction.Application.Peer;
 using Auction.Data.Models;
 using Auction.Data.Repositories;
+using Auction.DataLayer.Interfaces;
+using Auction.DataLayer.Repositories.Profiles;
 using Auction.Services;
+using AutoMapper;
 using Grpc.Core;
 using Microsoft.Extensions.DependencyInjection;
 using SQLitePCL;
@@ -15,38 +18,57 @@ namespace Auction
 {
     class Program
     {
-        static async Task Main(string[] args)
+        static void Main(string[] args)
         {
-            // Initialize SQLitePCLRaw
+            // Initialize SQLitePCL
             Batteries.Init();
 
-            var serviceProvider = new ServiceCollection()
-                .AddMemoryCache()
-                .AddScoped<IPeerRepository, PeerRepository>()
-                .AddScoped<IAuctionRepository, AuctionRepository>()
-                .BuildServiceProvider();
+            ConfigureAutoMapper();
 
-            var repositories = new
-            {
-                peer = serviceProvider.GetRequiredService<IPeerRepository>(),
-                auction = serviceProvider.GetRequiredService<IAuctionRepository>()
-            };
-
-            Console.WriteLine("Welcome to the PeerBid\n\n");
+            Console.WriteLine("Welcome to PeerBid\n");
             Console.WriteLine("-------------------------------------");
 
-            Console.Write("Enter name for peer: ");
-            var peerName = Console.ReadLine() ?? Guid.NewGuid().ToString();
+            // Initialize services and start the server
+            InitializeAndStartServer().GetAwaiter().GetResult();
+        }
 
-            Console.Write($"Enter a port for {peerName}: ");
-            if (!int.TryParse(Console.ReadLine(), out int peerPort))
+        static async Task InitializeAndStartServer()
+        {
+            // Read peer name and port
+            var peerName = ReadInput("Enter name for peer: ") ?? Guid.NewGuid().ToString();
+            if (!int.TryParse(ReadInput($"Enter a port for {peerName}: "), out int peerPort))
             {
                 Console.WriteLine("Invalid port. Closing...");
-                Console.ReadKey();
                 return;
             }
 
+            // Create peer instance
             var peer = new Peer(peerPort, peerName);
+
+            // Set up dependency injection
+            var serviceProvider = ConfigureServices(peer);
+
+            // Start the server
+            await StartServer(serviceProvider, peer);
+        }
+
+        static IServiceProvider ConfigureServices(Peer peer)
+        {
+            var dbFilePath = Path.Combine(Environment.CurrentDirectory, "PeerBid");
+
+            return new ServiceCollection()
+                .AddMemoryCache()
+                .AddAutoMapper(typeof(AuctionMappingProfile).Assembly)
+                .AddScoped<IPeerRepository, PeerRepository>()
+                .AddScoped(provider => peer)
+                .AddScoped<IAuctionRepository, AuctionRepository>()
+                .AddScoped<ISQLiteDataManager, SQLiteDataManager>(provider => new SQLiteDataManager(dbFilePath))
+                .AddScoped(provider => new AuctionRequestHandler(peer))
+                .BuildServiceProvider();
+        }
+
+        static async Task StartServer(IServiceProvider serviceProvider, Peer peer)
+        {
             try
             {
                 var server = new Server
@@ -54,40 +76,49 @@ namespace Auction
                     Services =
                     {
                         PeerHandler.BindService(new PeerService(peer)),
-                        AuctionHandler.BindService(new AuctionService(repositories.auction))
+                        AuctionHandler.BindService(new AuctionService(serviceProvider.GetRequiredService<IAuctionRepository>()))
                     },
                     Ports = { new ServerPort("localhost", peer.Port, ServerCredentials.Insecure) }
                 };
 
                 server.Start();
                 Console.WriteLine($"Server listening on port: {peer.Port}\n");
+
+                // Connect to other peers if desired
+                await ConnectToPeers(serviceProvider, peer);
+
+                Console.Clear();
+
+                var repositories = new
+                {
+                    peer = serviceProvider.GetRequiredService<IPeerRepository>(),
+                    auction = serviceProvider.GetRequiredService<IAuctionRepository>()
+                };
+
+                var menu = new Menu(peer, repositories.auction);
+                await menu.Start();
+
+                Console.WriteLine("Press any key to exit");
+                Console.ReadKey();
             }
             catch (IOException ioEx)
             {
-                Console.WriteLine($"Error starting server. Maybe the port is already in use, try a different one. Message: {ioEx.Message}");
-                Console.WriteLine("Press any key to exit");
-                Console.ReadKey();
-                return;
+                Console.WriteLine($"Error starting server. Maybe the port is already in use. Message: {ioEx.Message}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error starting server: {ex.Message}");
             }
+        }
 
-            Console.Write("Enter a port to connect to peer or ENTER to continue: ");
-            if (int.TryParse(Console.ReadLine(), out int fellowPeerPort))
-                await RetryConnect(peer, fellowPeerPort);
+        static async Task ConnectToPeers(IServiceProvider serviceProvider, Peer peer)
+        {
+            var fellowPeerPortInput = ReadInput("Enter a port to connect to peer or press ENTER to continue: ");
+            if (!int.TryParse(fellowPeerPortInput, out int fellowPeerPort))
+                return;
 
+            await RetryConnect(peer, fellowPeerPort);
             Console.WriteLine($"Connected peers: {peer.ConnectedPeers.Count}\n");
-            Console.Clear();
-
-            var dataManager = new SQLiteDataManager(Environment.CurrentDirectory + "/PeerBid");
-
-            var menu = new Menu(peer, repositories.auction, new AuctionRequestHandler(peer), dataManager);
-            menu.Start();
-
-            Console.WriteLine("Press any key to exit");
-            Console.ReadKey();
         }
 
         static async Task RetryConnect(Peer peer, int fellowPeerPort)
@@ -103,7 +134,7 @@ namespace Auction
                     await PeerRequestHandler.PingFellowPeer(peer, fellowPeerPort);
                     connected = true;
                 }
-                catch (Grpc.Core.RpcException ex)
+                catch (RpcException ex)
                 {
                     Console.WriteLine($"Attempt {attempt} failed: {ex.Message}");
                     Thread.Sleep(1000);
@@ -116,6 +147,23 @@ namespace Auction
                 Console.WriteLine("Failed to connect after multiple attempts.");
                 // Handle the failure appropriately (e.g., exit the application or show an error message)
             }
+        }
+
+        static string ReadInput(string message)
+        {
+            Console.Write(message);
+            return Console.ReadLine();
+        }
+
+        static void ConfigureAutoMapper()
+        {
+            var mapperConfig = new MapperConfiguration(cfg =>
+            {
+                cfg.AddProfile<AuctionMappingProfile>();
+            });
+
+            // Create a mapper instance and store it in a static variable
+            var mapper = mapperConfig.CreateMapper();
         }
     }
 }

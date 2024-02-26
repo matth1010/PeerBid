@@ -8,7 +8,7 @@ namespace Auction.Data.Models
         public string Id { get; set; } = string.Empty;
         public string? Item { get; set; }
         public double Price { get; set; }
-        public string Author { get; set; } = string.Empty;
+        public string Seller { get; set; } = string.Empty;
         public AuctionStatusCode Status { get; set; } = AuctionStatusCode.Unknown;
         public List<AuctionBid> Bids { get; set; } = new List<AuctionBid>();
 
@@ -17,7 +17,7 @@ namespace Auction.Data.Models
         public AuctionBid? GetHighestBid()
         {
             return Bids
-                .OrderByDescending(x => x.Amount)
+                .OrderByDescending(x => x.Price)
                 .FirstOrDefault();
         }
     }

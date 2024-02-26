@@ -29,7 +29,7 @@ namespace Auction.Services
                 Id = data.AuctionId,
                 Item = data.Item,
                 Price = data.Price,
-                Author = data.Author,
+                Seller = data.Author,
                 Status = AuctionStatusCode.Open
             };
 
@@ -48,10 +48,10 @@ namespace Auction.Services
         {
             Console.WriteLine($" >> {data.Bidder} has placed a new bid for {data.Amount} in auction {data.AuctionId}");
 
-            _auctionRepository.AddBid(new AuctionBid
+            _auctionRepository.AddBidAsync(new AuctionBid
             {
                 AuctionId = data.AuctionId,
-                Amount = data.Amount,
+                Price = data.Amount,
                 Bidder = data.Bidder
             });
 
@@ -68,12 +68,12 @@ namespace Auction.Services
         {
             Console.WriteLine($" >> Auction {data.AuctionId} has been completed. Highest bidder: {data.HighestBidder}. Amount: {data.Price}");
 
-            var auction = _auctionRepository.GetAuction(data.AuctionId);
+            var auction = await _auctionRepository.GetAuctionByIdAsync(data.AuctionId);
 
             if (auction != null)
             {
                 auction.Status = AuctionStatusCode.Closed;
-                _auctionRepository.UpdateAuction(auction);
+                _auctionRepository.UpdateAuctionCache(auction);
             }
 
             return data;

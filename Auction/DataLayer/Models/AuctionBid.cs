@@ -2,8 +2,9 @@
 {
     public class AuctionBid
     {
-        public string? AuctionId { get; set; }
-        public double Amount { get; set; }
-        public string? Bidder { get; set; }
+        public string AuctionId { get; set; }
+        public string Product { get; set; }
+        public double Price { get; set; }
+        public string Bidder { get; set; }
     }
 }

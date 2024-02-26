@@ -1,8 +1,11 @@
-﻿using Auction.DataLayer.Models;
+﻿using Auction.Data.Models;
+using Auction.DataLayer.Interfaces;
+using Auction.DataLayer.Models;
+using Grpc.Core;
 using Microsoft.Data.Sqlite;
 using System.Data.SQLite;
 
-public class SQLiteDataManager : IDataManager, IDisposable
+public class SQLiteDataManager : ISQLiteDataManager, IDisposable
 {
     private readonly SqliteConnection _connection;
 
@@ -49,6 +52,7 @@ public class SQLiteDataManager : IDataManager, IDisposable
                 Item TEXT,
                 Price REAL,
                 Seller TEXT,
+                Status INTEGER,
                 StartTime DATETIME,
                 EndTime DATETIME
             );";
@@ -81,7 +85,7 @@ public class SQLiteDataManager : IDataManager, IDisposable
         auction.AuctionId = Guid.NewGuid().ToString();
 
         // Insert auction information into the SQLite database
-        string insertQuery = "INSERT INTO Auction (AuctionId, Item, Price, Seller, StartTime, EndTime) VALUES (@AuctionId, @Item, @Price, @Seller, @StartTime, @EndTime)";
+        string insertQuery = "INSERT INTO Auction (AuctionId, Item, Price, Seller, Status, StartTime, EndTime) VALUES (@AuctionId, @Item, @Price, @Seller, @Status, @StartTime, @EndTime)";
 
         using (SqliteCommand command = new SqliteCommand(insertQuery, _connection))
         {
@@ -89,6 +93,7 @@ public class SQLiteDataManager : IDataManager, IDisposable
             command.Parameters.AddWithValue("@Item", auction.Item);
             command.Parameters.AddWithValue("@Price", auction.Price);
             command.Parameters.AddWithValue("@Seller", auction.Seller);
+            command.Parameters.AddWithValue("@Status", auction.Status);
             command.Parameters.AddWithValue("@StartTime", auction.StartTime);
             command.Parameters.AddWithValue("@EndTime", auction.EndTime);
 
@@ -133,7 +138,7 @@ public class SQLiteDataManager : IDataManager, IDisposable
         List<AuctionItemDTO> auctions = new List<AuctionItemDTO>();
 
         // Retrieve all auctions from the SQLite database
-        string selectQuery = "SELECT AuctionId, Item, Price, Seller, StartTime, EndTime FROM Auction";
+        string selectQuery = "SELECT AuctionId, Item, Price, Seller, Status, StartTime, EndTime FROM Auction";
 
         using (SqliteCommand command = new SqliteCommand(selectQuery, _connection))
         {
@@ -145,8 +150,9 @@ public class SQLiteDataManager : IDataManager, IDisposable
                     string item = reader.GetString(1);
                     double price = reader.GetDouble(2);
                     string seller = reader.GetString(3);
-                    DateTime startTime = reader.GetDateTime(4);
-                    DateTime endTime = reader.GetDateTime(5);
+                    int status = reader.GetInt32(4);
+                    DateTime startTime = reader.GetDateTime(5);
+                    DateTime endTime = reader.GetDateTime(6);
 
                     AuctionItemDTO auction = new AuctionItemDTO
                     {
@@ -154,6 +160,7 @@ public class SQLiteDataManager : IDataManager, IDisposable
                         Item = item,
                         Price = price,
                         Seller = seller,
+                        Status = (AuctionStatusCode)status,
                         StartTime = startTime,
                         EndTime = endTime
                     };
@@ -193,7 +200,7 @@ public class SQLiteDataManager : IDataManager, IDisposable
     public async Task<AuctionItemDTO?> GetAuctionById(string auctionId)
     {
         // Retrieve auction from the SQLite database based on its ID
-        string selectQuery = "SELECT AuctionId, Item, Price, Seller, StartTime, EndTime FROM Auction WHERE AuctionId = @AuctionId";
+        string selectQuery = "SELECT AuctionId, Item, Price, Seller, Status, StartTime, EndTime FROM Auction WHERE AuctionId = @AuctionId";
 
         using (SqliteCommand command = new SqliteCommand(selectQuery, _connection))
         {
@@ -206,8 +213,9 @@ public class SQLiteDataManager : IDataManager, IDisposable
                     string item = reader.GetString(1);
                     double price = reader.GetDouble(2);
                     string seller = reader.GetString(3);
-                    DateTime startTime = reader.GetDateTime(4);
-                    DateTime endTime = reader.GetDateTime(5);
+                    int status = reader.GetInt32(4);
+                    DateTime startTime = reader.GetDateTime(5);
+                    DateTime endTime = reader.GetDateTime(6);
 
                     return new AuctionItemDTO
                     {
@@ -215,6 +223,7 @@ public class SQLiteDataManager : IDataManager, IDisposable
                         Item = item,
                         Price = price,
                         Seller = seller,
+                        Status = (AuctionStatusCode)status,
                         StartTime = startTime,
                         EndTime = endTime
                     };
@@ -226,6 +235,21 @@ public class SQLiteDataManager : IDataManager, IDisposable
             }
         }
     }
+
+    public async Task UpdateAuctionStatus(string auctionId, double winningBid, AuctionStatusCode status)
+    {
+        string updateQuery = "UPDATE Auction SET Status = @Status, Price = @WinningBid WHERE AuctionId = @AuctionId";
+
+        using (SqliteCommand command = new SqliteCommand(updateQuery, _connection))
+        {
+            command.Parameters.AddWithValue("@AuctionId", auctionId);
+            command.Parameters.AddWithValue("@Status", (int)status);
+            command.Parameters.AddWithValue("@WinningBid", winningBid);
+
+            await command.ExecuteNonQueryAsync();
+        }
+    }
+
 
     public void Dispose()
     {

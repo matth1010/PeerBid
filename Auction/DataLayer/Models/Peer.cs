@@ -11,7 +11,7 @@ namespace Auction.Data.Models
         public int Port { get; set; }
         public string Name { get; set; }
         public string Address => $"{_baseUrl}:{Port}";
-        public Dictionary<string, string> ConnectedPeers { get; set; } = new Dictionary<string, string>(); // Changed from []
+        public Dictionary<string, string> ConnectedPeers { get; set; } = new Dictionary<string, string>();
 
         public Peer(int port, string name)
         {

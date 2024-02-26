@@ -79,7 +79,7 @@ namespace Auction.Application.Auction
         /// Completes an auction.
         /// </summary>
         /// <param name="auctionId">The ID of the auction to complete.</param>
-        public async Task Complete(string auctionId, BidDTO highestBid)
+        public async Task Complete(string auctionId, AuctionBid highestBid)
         {
             foreach (var connectedPeer in _authorPeer.ConnectedPeers)
             {
@@ -91,7 +91,7 @@ namespace Auction.Application.Auction
                     {
                         AuctionId = auctionId,
                         HighestBidder = highestBid.Bidder,
-                        Price = highestBid.Amount
+                        Price = highestBid.Price
                     });
 
                     await channel.ShutdownAsync();
